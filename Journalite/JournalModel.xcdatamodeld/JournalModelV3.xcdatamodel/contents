@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24000" systemVersion="24A" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="3">
+    <entity name="Notebook" representedClassName="NSManagedObject" syncable="YES">
+        <attribute name="id" optional="YES" attributeType="UUID" />
+        <attribute name="createdAt" optional="YES" attributeType="Date" />
+        <attribute name="updatedAt" optional="YES" attributeType="Date" />
+        <attribute name="deletedAt" optional="YES" attributeType="Date" />
+        <attribute name="name" optional="YES" attributeType="String" />
+        <attribute name="colorToken" optional="YES" attributeType="String" />
+        <attribute name="symbolName" optional="YES" attributeType="String" />
+        <relationship name="entries" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="JournalEntry" inverseName="notebook" inverseEntity="JournalEntry"/>
+    </entity>
+    <entity name="JournalEntry" representedClassName="NSManagedObject" syncable="YES">
+        <attribute name="pendingIngestionID" optional="YES" attributeType="UUID"/>
+        <attribute name="id" optional="YES" attributeType="UUID" />
+        <attribute name="createdAt" optional="YES" attributeType="Date" />
+        <attribute name="updatedAt" optional="YES" attributeType="Date" />
+        <attribute name="deletedAt" optional="YES" attributeType="Date" />
+        <attribute name="title" optional="YES" attributeType="String" />
+        <attribute name="journalDate" optional="YES" attributeType="Date" />
+        <attribute name="isFavorite" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <relationship name="notebook" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Notebook" inverseName="entries" inverseEntity="Notebook"/>
+        <relationship name="pages" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="JournalPage" inverseName="entry" inverseEntity="JournalPage"/>
+    </entity>
+    <entity name="JournalPage" representedClassName="NSManagedObject" syncable="YES">
+        <attribute name="id" optional="YES" attributeType="UUID" />
+        <attribute name="createdAt" optional="YES" attributeType="Date" />
+        <attribute name="updatedAt" optional="YES" attributeType="Date" />
+        <attribute name="deletedAt" optional="YES" attributeType="Date" />
+        <attribute name="position" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="sourceKind" optional="YES" attributeType="String" />
+        <attribute name="sourceHash" optional="YES" attributeType="String" />
+        <attribute name="ocrImageVersion" optional="YES" attributeType="UUID" />
+        <attribute name="ocrLowConfidenceLineCount" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES" />
+        <attribute name="rawOCRText" optional="YES" attributeType="String" />
+        <attribute name="ocrEngine" optional="YES" attributeType="String" />
+        <attribute name="ocrRevision" optional="YES" attributeType="String" />
+        <attribute name="ocrLanguage" optional="YES" attributeType="String" />
+        <attribute name="imageVersion" optional="YES" attributeType="UUID" />
+        <attribute name="ocrResultID" optional="YES" attributeType="UUID" />
+        <attribute name="selectedTranscriptRevisionID" optional="YES" attributeType="UUID" />
+        <attribute name="reviewedRevisionID" optional="YES" attributeType="UUID" />
+        <attribute name="ocrDate" optional="YES" attributeType="Date" />
+        <relationship name="entry" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="JournalEntry" inverseName="pages" inverseEntity="JournalEntry"/>
+        <relationship name="image" optional="YES" maxCount="1" deletionRule="Cascade" destinationEntity="PageImage" inverseName="page" inverseEntity="PageImage"/>
+        <relationship name="transcriptRevisions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="TranscriptRevision" inverseName="page" inverseEntity="TranscriptRevision"/>
+    </entity>
+    <entity name="PageImage" representedClassName="NSManagedObject" syncable="YES">
+        <attribute name="id" optional="YES" attributeType="UUID" />
+        <attribute name="sourceData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
+        <attribute name="contentType" optional="YES" attributeType="String" />
+        <attribute name="pixelWidth" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="pixelHeight" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="byteCount" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="page" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="JournalPage" inverseName="image" inverseEntity="JournalPage"/>
+    </entity>
+    <entity name="TranscriptRevision" representedClassName="NSManagedObject" syncable="YES">
+        <attribute name="id" optional="YES" attributeType="UUID" />
+        <attribute name="text" optional="YES" attributeType="String" />
+        <attribute name="createdAt" optional="YES" attributeType="Date" />
+        <attribute name="baseRevisionID" optional="YES" attributeType="UUID" />
+        <attribute name="imageVersion" optional="YES" attributeType="UUID" />
+        <relationship name="page" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="JournalPage" inverseName="transcriptRevisions" inverseEntity="JournalPage"/>
+    </entity>
+</model>
+

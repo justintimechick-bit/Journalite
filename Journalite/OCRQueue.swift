@@ -24,7 +24,7 @@ nonisolated struct OCRJob: Codable, Sendable, Equatable {
     private enum CodingKeys: String, CodingKey { case key, resultID, language, state, selectsResult }
 }
 
-extension OCRJob {
+nonisolated extension OCRJob {
     // Queues written before `selectsResult` existed must still decode.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)

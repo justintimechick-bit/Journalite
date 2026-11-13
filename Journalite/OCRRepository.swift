@@ -40,7 +40,7 @@ extension JournalRepository {
             page.setValue(result.text, forKey: "rawOCRText")
             page.setValue(job.resultID, forKey: "ocrResultID")
             page.setValue(job.key.imageVersion, forKey: "ocrImageVersion")
-            page.setValue("Apple Vision VNRecognizeTextRequest", forKey: "ocrEngine")
+            page.setValue(result.engine, forKey: "ocrEngine")
             page.setValue(String(result.revision), forKey: "ocrRevision")
             page.setValue(result.language, forKey: "ocrLanguage")
             page.setValue(Date(), forKey: "ocrDate")

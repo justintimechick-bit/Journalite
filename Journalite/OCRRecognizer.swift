@@ -13,6 +13,8 @@ nonisolated struct OCRResult: Sendable {
     let revision: Int
     let language: String
     let lowConfidenceLineCount: Int
+    /// Which engine produced the text (see `OCREngine`); saved with the page.
+    var engine: String = OCREngine.vision
 
     /// Ordinary horizontal, single-column pages: group fragments on the same baseline,
     /// then join rows from top to bottom. This is not a general layout parser.

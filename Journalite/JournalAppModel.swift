@@ -16,6 +16,7 @@ final class JournalAppModel {
     private(set) var hasStarted: Bool
     let capture: CaptureCoordinator
     let ocr: OCRCoordinator
+    let search: SearchCoordinator
     let isPreview: Bool
     private let persistence: PersistenceController
 
@@ -23,6 +24,7 @@ final class JournalAppModel {
         self.isPreview = isPreview
         capture = CaptureCoordinator(preview: isPreview)
         ocr = OCRCoordinator(preview: isPreview)
+        search = SearchCoordinator(preview: isPreview)
         hasStarted = isPreview ? false : UserDefaults.standard.bool(forKey: "hasStartedLocalJournal")
         persistence = PersistenceController(location: isPreview ? .memory : .application)
     }
@@ -37,6 +39,10 @@ final class JournalAppModel {
             status = .ready
             await capture.refreshRecovery()
             if let repository { await ocr.configure(repository: repository, files: capture.files) }
+            if let container = persistence.container {
+                // Indexing runs in the background; the journal is usable immediately.
+                Task { await search.configure(container: container) }
+            }
         } catch {
             status = .failed
         }
@@ -61,6 +67,8 @@ final class JournalAppModel {
         }
         revision += 1
         do { try await refresh() } catch { operationError = true }
+        // SQLite saves also arrive via remote-change notifications; in-memory previews rely on this.
+        Task { await search.requestUpdate() }
         return true
     }
 

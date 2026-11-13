@@ -25,6 +25,18 @@ struct EntryBatch: Sendable {
 struct EntryRoute: Hashable {
     let entryID: UUID
     var targetPageID: UUID? = nil
+    /// Search text that opened this entry; its words are emphasized in the page text.
+    var highlight: String? = nil
+}
+
+nonisolated enum EntryNavigation {
+    /// Which page to show. Keeps the current page while it still exists; otherwise opens the
+    /// requested page (e.g. a search result) if it is live, else the first page.
+    static func pageToShow(current: UUID?, livePageIDs: [UUID], target: UUID?) -> UUID? {
+        if let current, livePageIDs.contains(current) { return current }
+        if let target, livePageIDs.contains(target) { return target }
+        return livePageIDs.first
+    }
 }
 
 extension JournalRepository {

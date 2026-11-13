@@ -58,6 +58,8 @@ final class PersistenceController {
         description.shouldAddStoreAsynchronously = true
         if description.type == NSSQLiteStoreType {
             description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
+            // Lets the derived search index follow every save, including future sync imports.
+            description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
         }
         candidate.persistentStoreDescriptions = [description]
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in

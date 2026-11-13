@@ -41,7 +41,7 @@ private struct WelcomeView: View {
                     Text("Keep the page. Find the words.")
                         .font(.title2.bold())
                     Text("Journalite is designed to preserve photos of your handwritten journals and make their words searchable on your iPhone.")
-                    Text("Scan or import your pages and keep their photos in notebooks. Transcribe them on this iPhone and review the text beside the photo. Search is coming in a later update.")
+                    Text("Scan or import your pages and keep their photos in notebooks. Transcribe them on this iPhone, review the text beside the photo, and search your pages.")
                         .foregroundStyle(.secondary)
                 }
                 Section {
@@ -87,14 +87,16 @@ private struct JournalTabsView: View {
             }
             .tabItem { Label("Notebooks", systemImage: "book.closed") }
             NavigationStack {
-                ContentUnavailableView("Search is coming later", systemImage: "magnifyingglass",
-                    description: Text("Searching saved transcriptions will be available in a later update."))
-                    .navigationTitle("Search")
+                SearchView(model: model)
+                    .navigationDestination(for: EntryRoute.self) { route in
+                        EntryDetailView(model: model, route: route)
+                    }
             }
             .tabItem { Label("Search", systemImage: "magnifyingglass") }
             NavigationStack {
                 Form {
                     OCRSettingsSection(coordinator: model.ocr)
+                    SearchSettingsSection(search: model.search)
                     Section("Storage") {
                         if model.isPreview {
                             Label("Preview — temporary memory only", systemImage: "eye")

@@ -241,3 +241,61 @@ Re-read the docs and audited the existing Phase 3 implementation against the ful
 3. With an unsaved draft, tap Back: confirm the discard prompt. Then Retry OCR on that page and confirm the conflict banner and sheet keep your draft.
 4. Save a correction, restore an older one from Revisions, and confirm history only grows; Mark as Reviewed, then save again and confirm Needs review.
 5. Actions → Add or Manage Pages: import a photo, reorder, remove and restore a page.
+
+## Search — 2026-11-12
+
+Implemented on-device search with a separate SQLite FTS5 index derived from Core Data. See Architecture → Search Architecture and ProductBrief → Search.
+
+### Delivered
+- `SearchIndex.sqlite` in its own protected, backup-excluded folder, opened via the platform SQLite library; never the Core Data store.
+- Indexes canonical page text, entry title and notebook name with stable page/entry/notebook IDs. Trashed entries/notebooks, removed pages, pending ingestions, superseded corrections and OCR hidden by a correction (including blank corrections) are excluded. Entries without text remain findable by title.
+- Safe FTS query builder (word-prefix, punctuation-as-adjacent phrase, quoted exact phrase, operators neutralized) plus bound parameters.
+- Persistent-history consumption with batch-and-token atomic commits, idempotent replay, sweep cleanup by stored IDs, and rebuild on token/store/schema mismatch or expiry. Remote-change notifications enabled on the store.
+- Search tab: debounced, cancellable search; All Notebooks default; notebook/date/favorite/review filters; excerpts with bold+underline emphasis, notebook, date, page number, thumbnail; exact-page navigation with matched words emphasized; empty, no-match, building, limited and error states. Settings → Rebuild Search Index.
+- Bounded Core Data fallback (500 most recent entries) if FTS5 is missing.
+- No Spotlight/CoreSpotlight use and no logging of journal text.
+
+### Changed files
+- Added `Journalite/SearchQuery.swift`, `SearchIndex.swift`, `SearchIndexer.swift`, `SearchCoordinator.swift`, `SearchViews.swift`, `JournaliteTests/SearchTests.swift`.
+- Updated `PersistenceController.swift` (remote-change notifications), `JournalAppModel.swift`, `ContentView.swift` (Search tab, Settings section), `LibraryRepository.swift` (`EntryRoute.highlight`, `EntryNavigation`), `EntryViews.swift` (exact-page selection, emphasis), `TranscriptSelection.swift` (pure types marked nonisolated for background indexing).
+
+### Actual validation
+- FTS5 availability: **present** in the platform SQLite on iPhone 18 Pro Simulator (iOS 27.2) and Justin’s 18 Pro (iOS 27.2); `platformSQLiteProvidesFTS5` passed on both.
+- `xcodebuild test`, JournaliteTests: **54 passed, 0 failed** on the simulator and **54 passed, 0 failed** on the physical iPhone. The 17 search tests cover the query builder against hostile input, corrected vs raw, superseded and blank corrections, explicit retry, punctuation/case/diacritics/phrases/prefixes/no-substring, title-only and notebook-name matches, notebook rename and entry move, trash/restore of entries and notebooks, page removal/restore renumbering, permanent deletion cleanup, all filters, rebuild parity, simulated crash before commit with token unchanged and replay after reopening, repeated replay idempotency, store/token mismatch rebuilds, coordinator update/rebuild, fallback matching, exact-page navigation and emphasis.
+- Synthetic performance (isolated generated corpus, no journal data): 20,000 pages × ~120 words inserted in 0.84 s (simulator) / 0.92 s (device); slowest of 14 query/filter combinations 0.031 s (simulator) / 0.026 s (device). Core Data rebuild of 300 entries / 600 pages: 0.03 s / 0.06 s.
+- Built and launched on Justin’s 18 Pro; the device container shows `SearchIndex/SearchIndex.sqlite` with WAL sidecars beside, and separate from, `Journalite.sqlite`. Backup exclusion is verified by test on the simulator; the file-protection class was not inspected on device.
+- **Not verified**: no interactive pass over the Search tab, filters sheet, result navigation, VoiceOver reading of emphasis, or Dynamic Type layout. Remote (sync) imports don't exist yet, so that path is covered only by the same notification/history mechanism.
+
+### Practical verification (at most five)
+1. Search tab: type a word from a transcribed page; confirm results update as you type and the excerpt shows it bold and underlined with notebook, date and page number.
+2. Open a result on page 2 or 3; confirm that page opens in Text mode with the words emphasized.
+3. Correct a page's text in Compare and save; search the old OCR word (gone) and the new word (found).
+4. Move an entry to Recently Deleted and confirm it disappears from results; restore it and confirm it returns. Rename a notebook and search its new name.
+5. Settings → Rebuild Search Index; confirm status returns to "up to date" and results are unchanged.
+
+## On-device handwriting transcription — 2026-11-12
+
+Added Apple Foundation Models as the first transcription engine with automatic fallback to the existing Vision OCR, following the agreed choices: strictly verbatim with `[illegible]`, on-device `SystemLanguageModel` only, Vision when output is empty, a Settings toggle (on by default), and new pages / explicit Retry OCR only.
+
+### Changed files
+- Added `Journalite/HandwritingTranscriber.swift` (`TranscriptionPipeline`, `FoundationModelsTranscriber`, availability, settings, engine names) and `JournaliteTests/HandwritingTranscriptionTests.swift`.
+- `OCRRecognizer.swift`: defaulted `engine` field on `OCRResult`; Vision recognizer unchanged.
+- `OCRService.swift`: default recognizer is `TranscriptionPipeline()`.
+- `OCRRepository.swift`: saves the actual engine. `TranscriptSelection.swift` / `JournalRepository.swift`: `PageDetail.ocrEngine`.
+- `OCRCoordinator.swift`, `OCRViews.swift`: Settings toggle and live availability explanation. `EntryViews.swift`: engine shown in Text mode and Revisions; banner wording.
+- `OCRQueue.swift`: marked the `OCRJob` legacy decoder `nonisolated` (fixes a main-actor isolation warning introduced by the earlier retry fix).
+- Docs: ProductBrief (new On-device language model policy), Architecture, XcodeSetup, this file.
+
+### Actual validation
+- BuildProject (Journalite) on simulator and Justin’s 18 Pro: PASSED; no new warnings in changed files.
+- JournaliteTests: **66 passed, 0 failed** on iPhone 18 Pro Simulator (iOS 27.2) and **66 passed, 0 failed** on Justin’s 18 Pro (iOS 27.2). New tests: model used when enabled and available (whitespace trimmed only, engine recorded); fallback for each unavailable reason without calling the model; toggle off; missing system model; model error; empty/whitespace output (and honest blank when Vision is also empty); cancellation not converted to fallback; ≤2048 px downscale with aspect ratio kept and no upscaling; engine persisted and shown; toggle defaults on; verbatim instruction rules.
+- **Real model evidence**: `realOnDeviceModelTranscribesPrintedFixture` ran the actual on-device `SystemLanguageModel` with an image attachment on both the simulator (host Apple Intelligence available) and the iPhone, returning the generated page's text including “23:1” and “bread”, engine = Foundation Models. The fixture is printed text, so this proves the plumbing and verbatim path, **not handwriting accuracy**.
+- App installed and launched on the iPhone.
+- **Not verified**: transcription quality on real cursive pages, `[illegible]` behavior on genuinely unreadable words, latency on long dense pages, how often the 4K context forces fallback, and the Settings toggle/availability text by hand.
+
+### Practical verification (at most five)
+1. Settings → On-device transcription: confirm “Use Apple Intelligence for Handwriting” is on and the status says it's available.
+2. Open a handwritten page and tap Retry OCR; when done, Text mode should say “Transcribed by Apple Intelligence on-device handwriting transcription”. Compare word for word with the photo, especially names and verse references.
+3. Turn the toggle off, Retry OCR the same page; it should say Apple Vision text recognition.
+4. Look for `[illegible]` on smudged words rather than plausible guesses; report any invented words.
+5. Turn Apple Intelligence off in iOS Settings, return to Journalite and confirm the status explains Vision is used.

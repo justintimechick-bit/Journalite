@@ -37,7 +37,7 @@ Current bundled model is V3. PersistenceController explicitly loads JournalModel
 To run: select Journalite / Justin’s 18 Pro, then Product > Run (Command-R). To test: first build Journalite for the chosen device or simulator, then select JournaliteTests on that same destination and Product > Test (Command-U); return to Journalite afterward. Settings > On-device transcription exposes supported recognition languages. Existing pages with no local provenance receipt require Transcribe on This iPhone.
 
 ## Phase 1 test configuration and repeatable steps
-JournaliteTests is an iOS test bundle (minimum iOS 17) using Swift Testing. The Journalite app scheme's plan has no tests; select JournaliteTests to run the tests (37 cases as of the entry editing update, including parameterized migration and cancellation cases). For a fresh build:
+JournaliteTests is an iOS test bundle (minimum iOS 17) using Swift Testing. The Journalite app scheme's plan has no tests; select JournaliteTests to run the tests (66 cases as of the handwriting transcription update, including parameterized migration and cancellation cases). For a fresh build:
 1. Select Journalite / iPhone 18 Pro Simulator and Product > Build (Command-B).
 2. Select JournaliteTests / the same simulator and Product > Test (Command-U).
 3. Return to Journalite for running the app or rendering its preview.

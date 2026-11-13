@@ -29,6 +29,11 @@ struct OCRSettingsSection: View {
             if !coordinator.languages.isEmpty && !coordinator.languages.contains(coordinator.language) {
                 Text("The previous recognition language is unavailable on this device. Choose a supported language above.")
             }
+            Toggle("Use Apple Intelligence for Handwriting", isOn: $coordinator.useHandwritingModel)
+            if coordinator.useHandwritingModel {
+                Text(coordinator.handwritingAvailability.explanation)
+            }
+            Text("Runs only on this iPhone with Apple’s on-device model; pages are never uploaded. It copies words exactly as written — spelling, names and verse references included — and writes [illegible] instead of guessing. Apple Vision text recognition is used when this is off, unavailable, or can’t read a page. Applies to new pages and Retry OCR; saved pages aren’t changed.")
             Text("The selected language applies to new pages and retries. Processing pauses when the app is inactive and resumes when you return.")
             Text("Designed for ordinary line-based pages. Cursive and complex columns may need manual correction. No text is expanded or rewritten.")
             if let message = coordinator.message {
@@ -36,6 +41,7 @@ struct OCRSettingsSection: View {
                 Button("Retry Queue Recovery") { Task { await coordinator.retryRecovery() } }
             }
         }
+        .onAppear { coordinator.refreshHandwritingAvailability() }
     }
 }
 

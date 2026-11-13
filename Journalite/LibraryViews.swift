@@ -186,24 +186,12 @@ struct NotebookEditor: View {
 struct NotebookDetailView: View {
     let model: JournalAppModel
     let notebookID: UUID
-    @State private var editing = false
-    @State private var deleting = false
 
     var body: some View {
         Group {
             if let notebook = model.notebooks.first(where: { $0.id == notebookID }) {
-                EntryListView(model: model, notebookID: notebookID)
-                    .navigationTitle(notebook.name)
-                    .toolbar {
-                        Menu {
-                            Button("Edit Notebook") { editing = true }
-                            Button("Remove Notebook", role: .destructive) { deleting = true }
-                        } label: {
-                            Label("Notebook Actions", systemImage: "ellipsis.circle")
-                        }
-                    }
-                    .sheet(isPresented: $editing) { NotebookEditor(model: model, notebook: notebook) }
-                    .sheet(isPresented: $deleting) { RemoveNotebookView(model: model, notebook: notebook) }
+                // Every page in the notebook, swipeable left to right.
+                NotebookPagerView(model: model, scope: .notebook(notebookID), notebook: notebook)
             } else {
                 RecoveryNotice(model: model)
             }

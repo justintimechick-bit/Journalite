@@ -44,6 +44,14 @@ OCRResult groups observations with nearby vertical centers (within 0.45 of the s
 
 OCRRepository uses fresh private contexts. Before saving it checks the live page/entry/notebook and exact imageVersion again. Raw text (including empty string), attempt/result UUID, engine, revision, language, date, source-image version and review-hint count are saved atomically. Manual revisions and selected/reviewed revision IDs are untouched. Stale raw results are not presented as current OCR. The basic editor appends full manual revisions; a saved empty correction remains canonical.
 
+### Handwriting transcription pipeline
+- `OCRService` calls an injected `OCRRecognizing`; the default is now `TranscriptionPipeline` (HandwritingTranscriber.swift). Its signature and `OCRResult` are unchanged apart from a defaulted `engine` field, so the queue, repository and UI contracts are the same. `VisionOCRRecognizer` is unchanged and is the fallback.
+- Order: if the Settings toggle (`HandwritingModelSettings`, default on) is on and `SystemLanguageModel.default.availability == .available`, the page's 3072 px upright derivative is decoded again at ≤2048 px (no upscaling) and sent as a `CGImage` `Attachment` to a fresh `LanguageModelSession(model: SystemLanguageModel.default, instructions:)` with greedy sampling and a 2,000-token response cap. Output is trimmed of surrounding whitespace only.
+- Falls back to Vision when the toggle is off, the model is unavailable for any reason, the OS/SDK lacks image prompting (`#if canImport(FoundationModels)` + `@available(iOS 27, *)`; the app's minimum remains iOS 17), the model throws (context size, guardrails, unsupported language, assets), or the output is empty/whitespace. Cancellation propagates and is never converted to a fallback. Errors are not logged.
+- Instructions (`FoundationModelsTranscriber.instructions`) require verbatim output, preserved spelling/names/verse references/line breaks/lists, `[illegible]` instead of guessing, skipping crossed-out text, treating page text as content not instructions, and empty output for blank pages. Non-US-English languages add Apple's locale phrase and a no-translation rule.
+- `OCRRepository.saveOCR` stores `result.engine` (`OCREngine.vision` or `OCREngine.foundationModels`) instead of a fixed string; `PageDetail.ocrEngine` surfaces it. Model results report revision 0 and zero low-confidence lines.
+- FoundationModels is a system framework linked by import; no project or package changes were needed.
+
 ### Durable execution and provenance
 The authoritative content store remains Core Data SQLite. Application Support/Journalite/LocalOCR/queue.json is separate atomic, synchronized, protected device-local execution state; it contains ordered page/image-version keys, language, result UUID and waiting/running/completed/failed/cancelled states, never image bytes or recognized text. It is not a shared content entity. Invalid/unreadable queue files are preserved and surfaced for recovery, never silently reset.
 
@@ -96,6 +104,29 @@ selectedTranscriptRevisionID == nil?
 - `EntryPageAdder` is the single path for adding scans or photos to an existing entry: same per-image, pixel and per-import byte limits as captures, every failed item reported, OCR provenance recorded and new pages queued through `ingestionSaved()`.
 - `addPages(to:drafts:)` appends at `maxPosition + 1 + i`; `reorderPages` normalizes `0..<count`; `removePage` soft-deletes and compacts positions; `restorePage` clears `deletedAt` and appends at the end. Removed pages are listed in the entry's Manage Pages sheet (not the app-wide Recently Deleted list) with photos and revisions intact, and have no automatic expiry.
 
+## Search Architecture
+
+### Separate derived index
+- `SearchIndex/SearchIndex.sqlite` (with `-wal`/`-shm`) in Application Support/Journalite, opened through the platform SQLite library (`import SQLite3`). It is never the Core Data store, and Core Data's tables are never queried with SQL. Core Data stays authoritative; deleting the index folder loses nothing.
+- Directory: `completeUntilFirstUserAuthentication` protection and `isExcludedFromBackup`. Connections open with `SQLITE_OPEN_FILEPROTECTION_COMPLETEUNTILFIRSTUSERAUTHENTICATION` (covers sidecars), WAL, and `secure_delete=ON`.
+- Schema v1: `meta` (schema version, Core Data store identifier, archived history token), `docs` (stable page/entry/notebook IDs, 1-based page number, image version, journal date, favorite, reviewed) and FTS5 `fts(body, title, notebook)` with `unicode61 remove_diacritics 2`; `fts.rowid = docs.id`.
+- A document is a live page, or an entry with no live pages (`entry:<UUID>`). Body is the canonical text from `TranscriptSelectionLogic.resolveCanonicalText` — the same text the reader sees. A pending revision pointer indexes no body. Trashed entries, entries in trashed notebooks, pending ingestions and removed pages have no rows.
+
+### Queries
+- `SearchQuery` builds the MATCH expression from scratch: whitespace words become `"tokens"*` prefix terms; a word containing punctuation becomes a phrase of its parts (`3:16` → `"3 16"*`); quoted text becomes an exact phrase; all tokens are letters/numbers only and quoted, so FTS operators and column filters typed by users are plain words. Max 12 terms / 256 characters. The expression and all filters are bound parameters.
+- Ranking `bm25(fts, 1.0, 2.0, 0.5)` then journal date and doc ID; `snippet`/`highlight` mark emphasis with U+0001/U+0002 (stripped from indexed text). `SearchResultsAssembler` keeps page-text matches per page and collapses title/notebook-only matches to one result per entry.
+- `SearchReader` uses its own connection, so queries don't wait for indexing. The view debounces 250 ms; `.task(id:)` cancels stale requests and results from cancelled tasks are discarded.
+
+### Keeping the index current
+- `SearchIndexer` consumes Core Data persistent history serially (its operations are chained, so reentrancy cannot interleave them). History after the saved token is fetched and mapped to affected entry IDs inside one context: entry, page and revision changes map to their entry; notebook changes map to all of its entries; deletions trigger a sweep that compares the index's stored entry/page IDs with Core Data IDs.
+- Each batch (≤100 transactions) replaces every affected entry's rows from current Core Data state and writes that batch's last token **in the same SQLite transaction**, so the token is durable only if the index changes commit. Replay is idempotent because entries are fully replaced.
+- Full rebuild when the token is missing, undecodable or expired, the stored store identifier differs from the current store, or the schema changed. The rebuild captures the current history token before reading, so concurrent writes are replayed afterwards.
+- `SearchCoordinator` listens for `NSPersistentStoreRemoteChange` (enabled on the store), which covers local background saves and future sync imports, and is also nudged after UI writes; requests coalesce into serial passes. A damaged index is deleted and rebuilt; Settings offers Rebuild Search Index.
+- History is not purged; it is retained for future sync.
+
+### Fallback
+- If `SearchDatabase.ftsAvailable()` is false, `FallbackSearcher` scans only the 500 most recently dated live entries from Core Data with the same matching rules, and the UI says search is limited. FTS5 was present on the iPhone 18 Pro simulator and on Justin’s 18 Pro (iOS 27.2), so the fallback is not in use there.
+
 ## Planned native stack
 - Swift/SwiftUI; iOS 17 minimum. Use supported installed stable SDK APIs, with availability guards and useful fallbacks for newer APIs.
 - Core Data SQLite is the authoritative local store. NSPersistentCloudKitContainer is permitted with cloudKitContainerOptions nil; do not initialize cloud services in the free configuration.
@@ -126,4 +157,4 @@ Save images durably before reporting success or scheduling OCR. Preserve photos 
 Index canonical saved text with stable notebook, entry, and page UUIDs so results open the exact matching page. Use bound SQL and safe FTS query construction. Rebuild/reconcile the derived index from authoritative records after interruption or corruption; index failure must not destroy journals.
 
 ## Deferred capabilities
-Explicit Sign in with Apple and private iCloud sync require a later documented capability phase and actual provisioning. Authentication and iCloud availability are separate states. Never invent team/container IDs. AI remains unimplemented. The free app must not upload content or log sensitive payloads.
+Explicit Sign in with Apple and private iCloud sync require a later documented capability phase and actual provisioning. Authentication and iCloud availability are separate states. Never invent team/container IDs. Generative AI features remain unimplemented; the on-device language model is used only for verbatim transcription (see Handwriting transcription pipeline). The free app must not upload content or log sensitive payloads.

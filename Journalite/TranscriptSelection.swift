@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-struct TranscriptRevisionSummary: Identifiable, Sendable, Equatable {
+nonisolated struct TranscriptRevisionSummary: Identifiable, Sendable, Equatable {
     let id: UUID
     let text: String
     let createdAt: Date
@@ -10,7 +10,7 @@ struct TranscriptRevisionSummary: Identifiable, Sendable, Equatable {
     let isSelected: Bool
 }
 
-enum CanonicalTextStatus: Equatable, Sendable {
+nonisolated enum CanonicalTextStatus: Equatable, Sendable {
     case manualRevision(revisionID: UUID, text: String, isBlank: Bool)
     case missingSelectedRevision(pointerID: UUID)
     case rawOCR(resultID: UUID, text: String, isBlank: Bool)
@@ -68,12 +68,12 @@ enum CanonicalTextStatus: Equatable, Sendable {
     }
 }
 
-enum DraftConflictState: Equatable, Sendable {
+nonisolated enum DraftConflictState: Equatable, Sendable {
     case noConflict
     case conflict(baseSourceID: UUID?, currentSourceID: UUID?, currentText: String)
 }
 
-struct PageDetail: Identifiable, Sendable, Equatable {
+nonisolated struct PageDetail: Identifiable, Sendable, Equatable {
     let id: UUID
     let position: Int64
     let imageID: UUID?
@@ -86,10 +86,12 @@ struct PageDetail: Identifiable, Sendable, Equatable {
     let revisions: [TranscriptRevisionSummary]
     let canonicalResolution: CanonicalTextStatus
     let lowConfidenceLineCount: Int
+    /// Engine that produced `rawOCRText` (see `OCREngine`).
+    var ocrEngine: String? = nil
 }
 
 /// Pure, deterministic rules. No view, store, or clock access.
-enum TranscriptSelectionLogic {
+nonisolated enum TranscriptSelectionLogic {
     static func resolveCanonicalText(
         selectedRevisionID: UUID?,
         rawOCRText: String?,

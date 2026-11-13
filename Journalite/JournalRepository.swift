@@ -246,7 +246,8 @@ final class JournalRepository {
                 isReviewed: isReviewed,
                 revisions: revSummaries,
                 canonicalResolution: resolution,
-                lowConfidenceLineCount: lowConf
+                lowConfidenceLineCount: lowConf,
+                ocrEngine: page.value(forKey: "ocrEngine") as? String
             )
         }
     }

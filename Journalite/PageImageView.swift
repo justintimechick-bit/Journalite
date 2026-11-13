@@ -69,9 +69,13 @@ struct PageImageView: View {
 #if os(iOS)
 struct ZoomablePage: UIViewRepresentable {
     let url: URL
+    var background: UIColor = .secondarySystemBackground
 
     func makeUIView(context: Context) -> PageScrollView { PageScrollView() }
-    func updateUIView(_ view: PageScrollView, context: Context) { view.load(url) }
+    func updateUIView(_ view: PageScrollView, context: Context) {
+        view.backgroundColor = background
+        view.load(url)
+    }
 }
 
 /// The viewer decodes one bounded display derivative, never the source or all pages.
@@ -89,6 +93,22 @@ final class PageScrollView: UIScrollView, UIScrollViewDelegate {
         addSubview(pageImage)
         backgroundColor = .secondarySystemBackground
         accessibilityLabel = "Journal page photo"
+        let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap(_:)))
+        doubleTap.numberOfTapsRequired = 2
+        addGestureRecognizer(doubleTap)
+    }
+
+    /// Double-tap zooms in around the tapped point, or back out when already zoomed.
+    @objc private func handleDoubleTap(_ recognizer: UITapGestureRecognizer) {
+        if zoomScale > minimumZoomScale {
+            setZoomScale(minimumZoomScale, animated: true)
+            return
+        }
+        let scale = min(maximumZoomScale, 3)
+        let point = recognizer.location(in: pageImage)
+        let size = CGSize(width: bounds.width / scale, height: bounds.height / scale)
+        zoom(to: CGRect(x: point.x - size.width / 2, y: point.y - size.height / 2,
+                        width: size.width, height: size.height), animated: true)
     }
 
     required init?(coder: NSCoder) { return nil }

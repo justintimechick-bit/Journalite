@@ -1,13 +1,14 @@
 import Foundation
 
-/// Actor-isolated orchestration and ImageIO work; Vision runs on a detached utility task.
+/// Actor-isolated orchestration and ImageIO work. Recognition goes through `TranscriptionPipeline`:
+/// the on-device language model when available, otherwise Vision on a detached utility task.
 actor OCRService {
     let queue: OCRQueue
     private let recognizer: any OCRRecognizing
     private let scratch: URL
     private var running = false
 
-    init(queue: OCRQueue, recognizer: any OCRRecognizing = VisionOCRRecognizer(), scratch: URL) {
+    init(queue: OCRQueue, recognizer: any OCRRecognizing = TranscriptionPipeline(), scratch: URL) {
         self.queue = queue
         self.recognizer = recognizer
         self.scratch = scratch

@@ -12,6 +12,13 @@ final class OCRCoordinator {
             if !preview { UserDefaults.standard.set(language, forKey: "ocrRecognitionLanguage") }
         }
     }
+    /// Settings: try the on-device handwriting model first. Off forces Vision-only recognition.
+    var useHandwritingModel: Bool {
+        didSet {
+            if !preview { UserDefaults.standard.set(useHandwritingModel, forKey: HandwritingModelSettings.key) }
+        }
+    }
+    private(set) var handwritingAvailability: HandwritingModelAvailability = .unsupportedOS
     var message: String?
     private let preview: Bool
     private let queue: OCRQueue
@@ -25,6 +32,7 @@ final class OCRCoordinator {
     init(preview: Bool) {
         self.preview = preview
         language = preview ? "en-US" : UserDefaults.standard.string(forKey: "ocrRecognitionLanguage") ?? "en-US"
+        useHandwritingModel = preview ? true : HandwritingModelSettings.isEnabled()
         let root = preview
             ? FileManager.default.temporaryDirectory.appendingPathComponent("PreviewOCR-" + UUID().uuidString)
             : URL.applicationSupportDirectory.appendingPathComponent("Journalite/LocalOCR")
@@ -33,7 +41,13 @@ final class OCRCoordinator {
         service = OCRService(queue: queue, scratch: root.appendingPathComponent("Scratch"))
     }
 
+    /// Apple Intelligence can be turned on or off, or finish downloading, while the app runs.
+    func refreshHandwritingAvailability() {
+        handwritingAvailability = HandwritingModelAvailability.current()
+    }
+
     func configure(repository: JournalRepository, files: IngestionFiles) async {
+        refreshHandwritingAvailability()
         self.repository = repository
         self.files = files
         do {
